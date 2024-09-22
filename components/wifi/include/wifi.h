@@ -4,6 +4,9 @@
     #include "esp_event.h"
     #include "esp_log.h"
     #include "esp_err.h"
+
+    #define WIFI_CONNECT_READY 0x00000001
+    #define WIFI_CONNECT_NOT_READY 0xFFFFFFFE 
     enum WifiInitState{
         WIFI_UNINITIALIZED,
         WIFI_INITIALZING,
@@ -18,11 +21,11 @@
     };
 
     enum WifiConnectionState{
-        DISCONNETED,
-        CONNECTING,
-        RECONNECTING,
-        CONNECTED,
-        CONNECTION_FAIL
+        WIFI_DISCONNETED,
+        WIFI_CONNECTING,
+        WIFI_RECONNECTING,
+        WIFI_CONNECTED,
+        WIFI_CONNECTION_FAIL
     };
 
     enum WifiResult{
@@ -30,15 +33,20 @@
         WIFI_FAIL
     };
 
+    typedef enum WifiEventId{
+        WIFI_BEGIN_CONNECTION
+    } WifiEventId;
+
     extern enum WifiInitState wifiInitState;
     extern enum WifiScanState wifiScanState;
     extern enum WifiConnectionState wifiConnectionState;
+/*
+    bit 0 : wifiReadToConnect
+*/
+    extern int32_t wifiFlags;
+    
+    void wifiTaskMain(void* params);
 
-    // wifi_init_config_t wifi_init_config;
-
-    enum WifiResult initializeWifiWithSTAMode();
-    enum WifiResult startDefaultWifiScan();
-    enum WifiResult connectToWifi(wifi_config_t config);
 
 
 #endif

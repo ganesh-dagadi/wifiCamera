@@ -1,16 +1,49 @@
 #include "wifi.h"
+#include "freertos/task.h"
+
+#define WIFI_SSID "Your SSID"
+#define WIFI_PASSWORD "pASSWORD"
 
 const char* WIFI_TAG = "WIFI Task";
-enum WifiInitState wifiInitState = WIFI_UNINITIALIZED;
-enum WifiScanState wifiScanState = IDLE;
-enum WifiConnectionState wifiConnectionState = DISCONNETED;
+int32_t wifiFlag = 0;
+
+
+enum WifiResult initializeWifiWithSTAMode();
+void executeStateMachineWifi();
+void handleConnectionFail();
+enum WifiResult connectToWifiAP();
+
+void wifiTaskMain(void* params){
+    while(1){
+        executeStateMachineWifi();
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+}
+
+void executeStateMachineWifi(){
+    if(wifiInitState == WIFI_UNINITIALIZED){
+        initializeWifiWithSTAMode();
+    }
+
+    if(wifiFlags & WIFI_CONNECT_READY && (wifiConnectionState == WIFI_DISCONNETED || wifiConnectionState == WIFI_RECONNECTING)){
+        connectToWifiAP();
+    }
+
+}
 
 void event_handler_wifi_t(void* args , esp_event_base_t eventBase, int32_t event_id, void* eventData){
     ESP_LOGI(WIFI_TAG , "Recieved an event => base : %s ; id : %ld" , eventBase , event_id);
     if(event_id == (int32_t)WIFI_EVENT_STA_START){
+        wifiInitState = WIFI_INITIALIZED;
         ESP_LOGI(WIFI_TAG , "Wifi started from handler");
     }
+
+    if(event_id == (int32_t) WIFI_EVENT_STA_CONNECTED){
+        wifiConnectionState = WIFI_CONNECTED;
+        ESP_LOGI(WIFI_TAG ,"Wifi Connected \n");
+    }
 }
+
 enum WifiResult initializeWifiWithSTAMode(){
     esp_err_t err;
     wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
@@ -52,9 +85,30 @@ enum WifiResult initializeWifiWithSTAMode(){
         wifiInitState = WIFI_INITIALZATION_FAIL;
         return WIFI_FAIL;
     }
-    wifiInitState = WIFI_INITIALIZED;
     return WIFI_SUCCESS;
     
 }
-enum WifiResult startDefaultWifiScan();
-enum WifiResult connectToWifi(wifi_config_t config);
+
+enum WifiResult connectToWifiAP(){
+    esp_err_t err;
+    wifi_config_t config = {
+        .sta = {
+            .ssid = WIFI_SSID,
+            .password = WIFI_PASSWORD
+        }
+    };
+    esp_wifi_set_config(WIFI_IF_STA , &config);
+    ESP_LOGI(WIFI_TAG , "WIFI connecting \n");
+    err = esp_wifi_connect();
+    if(err != ESP_OK){
+        ESP_LOGE(WIFI_TAG , "WIFI failed to connect \n");
+        handleConnectionFail();
+        return WIFI_FAIL;
+    }  
+    return WIFI_SUCCESS;  
+}
+
+void handleConnectionFail(){
+    //try three times..else fail
+    wifiConnectionState = WIFI_CONNECTION_FAIL;
+}

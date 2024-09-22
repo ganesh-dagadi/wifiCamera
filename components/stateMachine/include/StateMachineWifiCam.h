@@ -8,6 +8,11 @@
         STATE_INITIALIZED,
         STATE_INITIALZATION_FAIL
     };
+    
+    typedef enum StateConnectionState{
+        STATE_DISCONNECTED,
+        STATE_CONNECTED
+    }StateConnectionState;
 
     enum StateMachineResult{
         STATE_OK,
@@ -15,7 +20,8 @@
     };
 
     extern enum InitStateGlobal stateMachineState;
+    extern StateConnectionState stateConnectionState;
 
-    enum StateMachineResult initializeStateMachine();
+    void stateMachineMain(void* params);
     
 #endif

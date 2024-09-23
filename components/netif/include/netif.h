@@ -11,7 +11,8 @@
 
     typedef enum NetifConnectionState{
         NETIF_HASIP,
-        NETIF_HASNOIP
+        NETIF_HASNOIP,
+        NETIF_LOSTIP
     }NetifConnectionState;
 
     typedef enum NetifResult{

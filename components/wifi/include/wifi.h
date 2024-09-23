@@ -6,7 +6,7 @@
     #include "esp_err.h"
 
     #define WIFI_CONNECT_READY 0x00000001
-    #define WIFI_CONNECT_NOT_READY 0xFFFFFFFE 
+    #define WIFI_WILLING_TO_CONNECT 0x00000002
     enum WifiInitState{
         WIFI_UNINITIALIZED,
         WIFI_INITIALZING,
@@ -41,7 +41,8 @@
     extern enum WifiScanState wifiScanState;
     extern enum WifiConnectionState wifiConnectionState;
 /*
-    bit 0 : wifiReadToConnect
+    bit 0 : wifiReadToConnect - every thing is initialized and we are ready to connect - default false
+    bit 1 : wifi willing to connect - false if permanent disconnect - default true
 */
     extern int32_t wifiFlags;
     

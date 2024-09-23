@@ -1,17 +1,18 @@
 #include "wifi.h"
 #include "freertos/task.h"
 
-#define WIFI_SSID "Your SSID"
-#define WIFI_PASSWORD "pASSWORD"
+#define WIFI_SSID "OPPO F17 Pro"
+#define WIFI_PASSWORD "dineshbabu"
 
 const char* WIFI_TAG = "WIFI Task";
 int32_t wifiFlag = 0;
-
+static short wifiReconnectionAttempts = 0;
 
 enum WifiResult initializeWifiWithSTAMode();
 void executeStateMachineWifi();
 void handleConnectionFail();
 enum WifiResult connectToWifiAP();
+enum WifiResult disconnectWifi();
 
 void wifiTaskMain(void* params){
     while(1){
@@ -26,7 +27,19 @@ void executeStateMachineWifi(){
     }
 
     if(wifiFlags & WIFI_CONNECT_READY && (wifiConnectionState == WIFI_DISCONNETED || wifiConnectionState == WIFI_RECONNECTING)){
+        if(wifiConnectionState == WIFI_DISCONNETED){
+            ESP_LOGI(WIFI_TAG , "Connecting to Wifi");
+        }else{
+            ESP_LOGW(WIFI_TAG , "Reconnecting to Wifi");
+        }
         connectToWifiAP();
+    }
+
+    if(wifiConnectionState == WIFI_CONNECTED || wifiConnectionState == WIFI_RECONNECTING){
+        if(!(wifiFlags & WIFI_CONNECT_READY)){
+            ESP_LOGI(WIFI_TAG , "Disconnecting is being called");
+            disconnectWifi();
+        }
     }
 
 }
@@ -40,7 +53,14 @@ void event_handler_wifi_t(void* args , esp_event_base_t eventBase, int32_t event
 
     if(event_id == (int32_t) WIFI_EVENT_STA_CONNECTED){
         wifiConnectionState = WIFI_CONNECTED;
+        wifiReconnectionAttempts = 0;
         ESP_LOGI(WIFI_TAG ,"Wifi Connected \n");
+    }
+
+    if(event_id == (int32_t) WIFI_EVENT_STA_DISCONNECTED){
+        wifiConnectionState = WIFI_DISCONNETED;
+        ESP_LOGW(WIFI_TAG ,"Wifi Disconnected \n");
+        handleConnectionFail();
     }
 }
 
@@ -90,6 +110,10 @@ enum WifiResult initializeWifiWithSTAMode(){
 }
 
 enum WifiResult connectToWifiAP(){
+    if(wifiConnectionState == WIFI_CONNECTING){
+        return WIFI_FAIL;
+    }
+    wifiConnectionState = WIFI_CONNECTING;
     esp_err_t err;
     wifi_config_t config = {
         .sta = {
@@ -98,7 +122,7 @@ enum WifiResult connectToWifiAP(){
         }
     };
     esp_wifi_set_config(WIFI_IF_STA , &config);
-    ESP_LOGI(WIFI_TAG , "WIFI connecting \n");
+    ESP_LOGI(WIFI_TAG , "Calling wifi connect \n");
     err = esp_wifi_connect();
     if(err != ESP_OK){
         ESP_LOGE(WIFI_TAG , "WIFI failed to connect \n");
@@ -108,7 +132,27 @@ enum WifiResult connectToWifiAP(){
     return WIFI_SUCCESS;  
 }
 
+enum WifiResult disconnectWifi(){
+    esp_err_t err;
+    ESP_LOGI(WIFI_TAG , "Disconnecting from Wifi");
+    err = esp_wifi_disconnect();
+    if(err != ESP_OK){
+        ESP_LOGE(WIFI_TAG , "WIFI failed to disconnect \n");
+        return WIFI_FAIL;
+    }  
+    return WIFI_SUCCESS;  
+}
+
 void handleConnectionFail(){
-    //try three times..else fail
-    wifiConnectionState = WIFI_CONNECTION_FAIL;
+    if(wifiReconnectionAttempts < 3 && (wifiFlags & WIFI_WILLING_TO_CONNECT)){
+        ESP_LOGW(WIFI_TAG , "Connection failed. Attempting reconnect in 5s");
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        wifiConnectionState = WIFI_RECONNECTING;
+        wifiReconnectionAttempts++;
+        return;
+    }
+    if(wifiFlags & WIFI_WILLING_TO_CONNECT){
+        ESP_LOGE(WIFI_TAG , "Reconnect attemp failed 3 times. Escalating to WIFI CONNECTION FAIL");
+        wifiConnectionState = WIFI_CONNECTION_FAIL;
+    }
 }

@@ -17,7 +17,7 @@ StateConnectionState stateConnectionState = STATE_DISCONNECTED;
 enum WifiInitState wifiInitState = WIFI_UNINITIALIZED;
 enum WifiScanState wifiScanState = IDLE;
 enum WifiConnectionState wifiConnectionState = WIFI_DISCONNETED;
-int32_t wifiFlags = 0;
+int32_t wifiFlags = 0x00000002; //default flags..refer wifi.h
 
 NetifInitState netifInitState = NETIF_UNINITIALIZED;
 NetifConnectionState netifConnectionState = NETIF_HASNOIP;
@@ -33,6 +33,15 @@ void stateMachineMain(void* params){
     }
 }
 
+int started = 0;
+// void timer_callback(TimerHandle_t xTimer) {
+//     if(wifiConnectionState == WIFI_CONNECTED || wifiConnectionState == WIFI_RECONNECTING || wifiConnectionState == WIFI_CONNECTING){
+//             ESP_LOGI(STATE_TAG , "IN HEREEE");
+//              wifiFlags &= ~WIFI_WILLING_TO_CONNECT;
+//              wifiFlags &= ~WIFI_CONNECT_READY;
+//     }   
+// }
+
 void executeStateMachineState(){
     if(stateMachineState == STATE_UNINITIALIZED){
         ESP_LOGW(STATE_TAG , "Initializing");
@@ -40,6 +49,7 @@ void executeStateMachineState(){
     }
 
     if(wifiInitState == WIFI_UNINITIALIZED){
+        ESP_LOGI(STATE_TAG , "Creating Wifi Task");
         if(stateMachineState == STATE_INITIALIZED){
             xTaskCreate(wifiTaskMain,
             "WIFI_TASK",
@@ -50,9 +60,32 @@ void executeStateMachineState(){
             );
         }
     }
+    
+    if(wifiConnectionState == WIFI_CONNECTION_FAIL || wifiConnectionState == WIFI_DISCONNETED){
+        stateConnectionState = STATE_DISCONNECTED;
+        netifConnectionState = NETIF_HASNOIP;
+        ESP_LOGE(STATE_TAG , "State Machine is in disconnected state");
+    }
+    if(wifiInitState == WIFI_INITIALZATION_FAIL || netifInitState == NETIF_INITIALZATION_FAIL){
+        stateMachineState = STATE_INITIALZATION_FAIL;
+    }
+
+    if(0){ //future - disconnect request
+        if(wifiConnectionState == WIFI_CONNECTED || wifiConnectionState == WIFI_RECONNECTING || wifiConnectionState == WIFI_CONNECTING){
+             wifiFlags &= ~WIFI_WILLING_TO_CONNECT;
+             wifiFlags &= ~WIFI_CONNECT_READY;
+        }        
+    }
+
+    if((netifInitState == NETIF_INITIALIZED && wifiInitState == WIFI_INITIALIZED) && netifConnectionState == NETIF_LOSTIP){
+        ESP_LOGI(STATE_TAG , "IN HERE");
+        //Disconnect and reconnect wifi to get new ip address
+        wifiFlags &= ~WIFI_CONNECT_READY;
+    }
 
     if(netifInitState == NETIF_UNINITIALIZED){
         if(stateMachineState == STATE_INITIALIZED){
+             ESP_LOGI(STATE_TAG , "Creating Netif Task");
             xTaskCreate(netifTaskMain,
             "NETIF_TASK",
             NETIF_TASK_MEMEORY,
@@ -64,13 +97,14 @@ void executeStateMachineState(){
     }
 
     if(stateMachineState == STATE_INITIALIZED && netifInitState == NETIF_INITIALIZED && wifiInitState == WIFI_INITIALIZED){
-        if(wifiConnectionState == WIFI_DISCONNETED){
+        if(wifiConnectionState == WIFI_DISCONNETED && (wifiFlags & WIFI_WILLING_TO_CONNECT)){
+            ESP_LOGI(STATE_TAG , "Wifi Ready to connect ");
             wifiFlags |= WIFI_CONNECT_READY;
         }
     }
 
     if(stateMachineState == STATE_INITIALIZED && netifConnectionState == NETIF_HASIP && wifiConnectionState == WIFI_CONNECTED){
-        stateMachineState = STATE_CONNECTED;
+        stateConnectionState = STATE_CONNECTED;
         ESP_LOGI(STATE_TAG , "State is now connected");
     }
 }

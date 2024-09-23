@@ -22,8 +22,8 @@ void event_handler_netif_t(void* args , esp_event_base_t eventBase, int32_t even
         ESP_LOGI(NETIF_TAG , "IP address recieved");
         break;
         case ((int32_t)IP_EVENT_STA_LOST_IP):
-        netifConnectionState = NETIF_HASNOIP;
-        ESP_LOGI(NETIF_TAG , "IP address lost");
+        netifConnectionState = NETIF_LOSTIP;
+        ESP_LOGW(NETIF_TAG , "IP address lost");
         break;
     }
     

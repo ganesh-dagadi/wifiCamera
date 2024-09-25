@@ -5,10 +5,12 @@
 #include "nvs_flash.h"
 #include "wifi.h"
 #include "netif.h"
+#include "communication.h"
 #include "freertos/task.h"
 
 #define WIFI_TASK_MEMORY 8192
 #define NETIF_TASK_MEMEORY 4096
+#define COMMUNICATION_TASK_MEMORY 4096
 
 const char* STATE_TAG = "STATE MACHINE";
 enum InitStateGlobal stateMachineState = STATE_UNINITIALIZED;
@@ -22,8 +24,13 @@ int32_t wifiFlags = 0x00000002; //default flags..refer wifi.h
 NetifInitState netifInitState = NETIF_UNINITIALIZED;
 NetifConnectionState netifConnectionState = NETIF_HASNOIP;
 
+CommunicationState communicationState= COMM_UNINITIALIZED;
+CommunicationConnectionState communicationConnectionState = COMM_DISCONNECTED;
+int communicationFlags = 0x00000000;
+
 TaskHandle_t wifiTaskHandle = NULL;
 TaskHandle_t netifTaskHandle = NULL;
+TaskHandle_t commTaskHandle = NULL;
 void executeStateMachineState();
 enum StateMachineResult initializeStateMachine();
 void stateMachineMain(void* params){
@@ -64,9 +71,13 @@ void executeStateMachineState(){
     if(wifiConnectionState == WIFI_CONNECTION_FAIL || wifiConnectionState == WIFI_DISCONNETED){
         stateConnectionState = STATE_DISCONNECTED;
         netifConnectionState = NETIF_HASNOIP;
+        communicationFlags &= ~COMM_READY_TO_CONNECT;
         ESP_LOGE(STATE_TAG , "State Machine is in disconnected state");
     }
-    if(wifiInitState == WIFI_INITIALZATION_FAIL || netifInitState == NETIF_INITIALZATION_FAIL){
+    if(wifiInitState == WIFI_INITIALZATION_FAIL
+     || netifInitState == NETIF_INITIALZATION_FAIL
+     || communicationState == COMM_INITIALIZATION_FAIL){
+        ESP_LOGE( STATE_TAG , "Failed to Initialize State Machine");
         stateMachineState = STATE_INITIALZATION_FAIL;
     }
 
@@ -105,7 +116,24 @@ void executeStateMachineState(){
 
     if(stateMachineState == STATE_INITIALIZED && netifConnectionState == NETIF_HASIP && wifiConnectionState == WIFI_CONNECTED){
         stateConnectionState = STATE_CONNECTED;
-        ESP_LOGI(STATE_TAG , "State is now connected");
+        if(communicationState == COMM_INITIALIZED && communicationConnectionState != COMM_CONNECTED){
+            ESP_LOGI(STATE_TAG , "State is now connected");
+            ESP_LOGI(STATE_TAG , "Communication Task is ready to connect");
+            communicationFlags |= COMM_READY_TO_CONNECT;
+        }
+    }
+
+    if(communicationState == COMM_UNINITIALIZED){
+        ESP_LOGI(STATE_TAG , "Creating Communication Task");
+        if(stateMachineState == STATE_INITIALIZED){
+            xTaskCreate(communicationMainTask,
+            "COMMUNICATION_TASK",
+            COMMUNICATION_TASK_MEMORY,
+            NULL,
+            5,
+            &commTaskHandle
+            );
+        }
     }
 }
 

@@ -1,8 +1,8 @@
 #include "wifi.h"
 #include "freertos/task.h"
 
-#define WIFI_SSID "OPPO F17 Pro"
-#define WIFI_PASSWORD "dineshbabu"
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
 
 const char* WIFI_TAG = "WIFI Task";
 int32_t wifiFlag = 0;
